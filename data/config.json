@@ -1,17 +1,32 @@
 {
   "network": {
     "wifi": {
-      "ssid": "MY_SSID",
-      "password": "MY_PASSWORD"
+      "ssid": "DEINE_SID",
+      "password": "DEIN_WLAN_PASSWORT"
     }
   },
   "mqtt": {
     "server": {
-      "host": "192.168.1.1",
+      "host": "192.168.1.73",
       "port": 1883
     },
     "publish": {
       "retain": true
+    }
+  },
+  "ble": {
+    "services": {
+      "definitions": {
+        "9d8df373-d9fa-4f73-9a0e-a248b2f6b8ed": {
+          "name": "Doorman"
+        }
+      }
+    },
+    "whitelist": [
+      "f6:46:67:91:29:8f"
+    ],
+    "passkeys": {
+      "f6:46:67:91:29:8f": 123456
     }
   }
 }

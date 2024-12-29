@@ -21,8 +21,13 @@
 #include <freertos/task.h>
 #include <freertos/timers.h>
 #include <string.h>
+#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #define MAX_TOPIC_LEN 256
+#define BUTTON_GPIO_PIN GPIO_NUM_2
+
 static const char *TAG = "BLE2MQTT";
 
 typedef struct {
@@ -31,6 +36,44 @@ typedef struct {
     ble_uuid_t characteristic;
     uint8_t index;
 } mqtt_ctx_t;
+
+
+static void monitor_gpio_task(void *arg)
+{
+    ESP_LOGI(TAG, "Monitoring Started ***************************************************************");
+    // wait for initial button release
+    while (gpio_get_level(BUTTON_GPIO_PIN) == 0) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    // debounce for good measure
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    while (1) {
+        if (gpio_get_level(BUTTON_GPIO_PIN) == 0) {  // Button is active LOW
+            // Debounce
+            vTaskDelay(pdMS_TO_TICKS(50));
+            
+            // Start counting press duration
+            TickType_t press_start = xTaskGetTickCount();
+            
+            // Wait while button remains pressed
+            while (gpio_get_level(BUTTON_GPIO_PIN) == 0) {
+                TickType_t press_duration = xTaskGetTickCount() - press_start;
+                
+                // Check if 2 seconds have elapsed
+                if (press_duration >= pdMS_TO_TICKS(2000)) {
+                    ESP_LOGI(TAG, "Long press detected - rebooting device");
+                    vTaskDelay(pdMS_TO_TICKS(500));  // Small delay for log visibility
+                    esp_restart();
+                }
+                vTaskDelay(pdMS_TO_TICKS(100));  // Check every 100ms
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+
 
 static const char *device_name_get(void)
 {
@@ -911,6 +954,7 @@ static void _ble_on_mqtt_set(const char *topic, const uint8_t *payload,
 void app_main()
 {
     int config_failed;
+    int enforce_ap_mode = 0;
 
     /* Initialize NVS */
     esp_err_t ret = nvs_flash_init();
@@ -921,6 +965,26 @@ void app_main()
     ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG, "Version: %s", BLE2MQTT_VER);
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << BUTTON_GPIO_PIN, // Select the GPIO pin
+        .mode = GPIO_MODE_INPUT,                // Set as input
+        .pull_up_en = GPIO_PULLUP_ENABLE,       // Enable internal pull-up
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,  // Disable pull-down
+        .intr_type = GPIO_INTR_DISABLE          // No interrupt
+    };
+
+    gpio_config(&io_conf);
+
+ 
+    /* Check button state at startup */
+    if (gpio_get_level(BUTTON_GPIO_PIN) == 0) { // Button pressed (active low)
+        ESP_LOGI(TAG, "Button pressed at startup, starting in AP mode...");
+        enforce_ap_mode = 1;
+    }
+    
+    xTaskCreate(monitor_gpio_task, "monitor_gpio_task", 2048, NULL, 5, NULL);
+   
 
     /* Init configuration */
     config_failed = config_initialize();
@@ -982,7 +1046,7 @@ void app_main()
     ESP_ERROR_CHECK(start_ble2mqtt_task());
 
     /* Failed to load configuration or it wasn't set, create access point */
-    if (config_failed || !strcmp(config_network_wifi_ssid_get() ? : "", "MY_SSID"))
+    if (enforce_ap_mode || config_failed || !strcmp(config_network_wifi_ssid_get() ? : "", "MY_SSID"))
     {
         wifi_start_ap(device_name_get(), NULL);
         return;
