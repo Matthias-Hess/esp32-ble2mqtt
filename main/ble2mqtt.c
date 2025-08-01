@@ -24,6 +24,7 @@
 #include "driver/gpio.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include "esp_coexist.h"
 
 #define MAX_TOPIC_LEN 256
 #define BUTTON_GPIO_PIN GPIO_NUM_2
@@ -1027,15 +1028,15 @@ void app_main()
     mqtt_set_on_disconnected_cb(_mqtt_on_disconnected);
 
     /* Init BLE */
+    esp_coex_preference_set(ESP_COEX_PREFER_BT);
+
     ESP_ERROR_CHECK(ble_initialize());
     ble_set_on_broadcaster_discovered_cb(_ble_on_broadcaster_discovered);
     ble_set_on_device_discovered_cb(_ble_on_device_discovered);
     ble_set_on_device_connected_cb(_ble_on_device_connected);
     ble_set_on_device_disconnected_cb(_ble_on_device_disconnected);
-    ble_set_on_device_services_discovered_cb(
-        _ble_on_device_services_discovered);
-    ble_set_on_device_characteristic_value_cb(
-        _ble_on_device_characteristic_value);
+    ble_set_on_device_services_discovered_cb(_ble_on_device_services_discovered);
+    ble_set_on_device_characteristic_value_cb(_ble_on_device_characteristic_value);
     ble_set_on_passkey_requested_cb(ble_on_passkey_requested);
 
     /* Init web server */
