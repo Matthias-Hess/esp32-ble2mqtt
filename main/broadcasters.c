@@ -768,7 +768,7 @@ static broadcaster_ops_t *broadcaster_ops[] = {
     &ibeacon_ops,
     &eddystone_ops,
     &mijia_sensor_ops,
-    &beewi_smart_door_ops,
+    //&beewi_smart_door_ops,
     &atc1441_temp_hum_ops,
     NULL
 };
